@@ -1,0 +1,19 @@
+// ignore_for_file: public_member_api_docs, sort_constructors_first
+import 'dart:io';
+
+import 'package:hydro/bin/middleware.dart';
+import 'package:hydro/bin/request.dart';
+import 'package:hydro/bin/route.dart';
+
+abstract class EntryPoint {
+  Configuration get configuration;
+  List<Route> routes = [Root()];
+  List<Request> requestTypes = [Post(), Get()];
+  List<Middleware> middlewares = [];
+}
+
+class Configuration {
+  final InternetAddress ip;
+  final int port;
+  Configuration({required this.ip, required this.port});
+}
