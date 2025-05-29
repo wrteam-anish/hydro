@@ -32,39 +32,52 @@ class BootStrap {
     httpServer.listen((HttpRequest req) async {
       for (Route route in routes) {
         if (matchRoute(route.target, req.uri.toString())) {
-          for (Request request in requestTypes) {
-            if (req.method.toLowerCase() == request.method.toLowerCase()) {
+          for (Request templateRequest in requestTypes) {
+            if (req.method.toLowerCase() ==
+                templateRequest.method.toLowerCase()) {
               Map<String, String>? parsedArguments = parseArguments(
                 route.target,
                 req.uri.path,
               );
-              bool middlewarePassed = middlewares.handle(request);
-              print('Passed :$middlewarePassed');
+
+              final Request request =
+                  templateRequest
+                    ..method = templateRequest.method
+                    ..path = req.uri.path
+                    ..arguments = parsedArguments ?? {};
+
+              final middlewarePassed = await runMiddlewares(
+                middlewares,
+                request,
+              );
+
+              print('Passed  ?? $middlewarePassed');
 
               if (!middlewarePassed) {
-                // Middleware rejected the request — send 403 Forbidden or similar
                 req.response.statusCode = HttpStatus.forbidden;
                 await req.response.close();
                 return;
               }
 
-              Response? response = route.onRoute(
-                request
-                  ..path = req.uri.path
-                  ..arguments = parsedArguments ?? {},
-              );
+              final response = route.onRoute(request);
+              print('Resolved  ?? $route');
 
               if (response != null) {
                 req.response.headers.set('Content-Type', response.type);
-
                 req.response.write(response.content);
-
-                req.response.close();
               }
+
+              await req.response.close();
+              return; // end after handling a match
             }
           }
         }
       }
+
+      // If no route matched
+      req.response.statusCode = HttpStatus.notFound;
+      req.response.write("404 Not Found");
+      await req.response.close();
     });
   }
 }
@@ -82,7 +95,6 @@ Map<String, String>? parseArguments(String pattern, String path) {
     final pSegment = patternSegments[pIndex];
 
     if (aIndex >= pathSegments.length) {
-      // If remaining pattern segments are all optional, we're good
       final remainingOptional = patternSegments
           .skip(pIndex)
           .every((seg) => seg.startsWith(':') && seg.endsWith('?'));
@@ -105,14 +117,13 @@ Map<String, String>? parseArguments(String pattern, String path) {
 
       pIndex++;
     } else {
-      // Static segment must match
       if (pSegment != aSegment) return null;
       pIndex++;
       aIndex++;
     }
   }
 
-  if (aIndex != pathSegments.length) return null; // extra segments in path
+  if (aIndex != pathSegments.length) return null;
   return result;
 }
 
@@ -125,7 +136,6 @@ bool matchRoute(String pattern, String path) {
 
   while (pIndex < patternSegments.length) {
     if (aIndex >= pathSegments.length) {
-      // Check if remaining pattern segments are all optional
       final remainingOptional = patternSegments
           .skip(pIndex)
           .every((seg) => seg.startsWith(':') && seg.endsWith('?'));
@@ -136,26 +146,14 @@ bool matchRoute(String pattern, String path) {
     final aSegment = pathSegments[aIndex];
 
     if (pSegment.startsWith(':')) {
-      if (pSegment.endsWith('?')) {
-        // Optional parameter — advance pattern but only advance path if it exists
-        pIndex++;
-        aIndex++;
-        continue;
-      } else {
-        // Regular dynamic parameter — must consume both
-        pIndex++;
-        aIndex++;
-        continue;
-      }
+      pIndex++;
+      aIndex++;
+    } else {
+      if (pSegment != aSegment) return false;
+      pIndex++;
+      aIndex++;
     }
-
-    // Static segment must match exactly
-    if (pSegment != aSegment) return false;
-
-    pIndex++;
-    aIndex++;
   }
 
-  // Make sure all path segments are consumed
   return aIndex == pathSegments.length;
 }

@@ -10,6 +10,8 @@ abstract class Route {
 class Root extends Route {
   @override
   Response? onRoute(Request request) {
+    print('Method ${request is Get}');
+
     if (request is Get) {
       return View(
         '<A href="google.com"> Hello World ${request.get('id')}</a> <script>alert("Hello World")</script>',

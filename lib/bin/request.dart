@@ -1,10 +1,9 @@
-abstract class Request {
-  String get method;
+class Request {
+  String method = '';
   String path = '';
-  Map<String, String>  arguments={};
+  Map<String, String> arguments = {};
 
-
-  String? get(String key){
+  String? get(String key) {
     return arguments[key];
   }
 }

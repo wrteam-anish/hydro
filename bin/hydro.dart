@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:hydro/bin/entry_point.dart';
 import 'package:hydro/bin/middleware.dart';
+import 'package:hydro/bin/request.dart';
 import 'package:hydro/bin/route.dart';
 import 'package:hydro/hydro.dart';
 
@@ -17,18 +19,19 @@ class ServerConfiguration extends EntryPoint {
   List<Route> get routes => [Root()];
 
   @override
-  List<Middleware> get middlewares => [RejectionMiddleware()];
+  List<Middleware> get middlewares => [RejectionMiddleware(), AlwaysReject()];
 }
 
 class RejectionMiddleware extends Middleware {
   @override
-  bool handle(MiddlewareContext context) {
-    var x = context.request.get('id');
-    if (x == '2') {
-      context.reject('Rejected');
-      return false;
-    }
+  void handle(Request req) {
+    next();
+  }
+}
 
-    return true;
+class AlwaysReject extends Middleware {
+  @override
+  void handle(Request req) {
+    next();
   }
 }
