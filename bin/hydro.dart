@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:hydro/bin/entry_point.dart';
 import 'package:hydro/bin/middleware.dart';
 import 'package:hydro/bin/request.dart';
 import 'package:hydro/bin/route.dart';
 import 'package:hydro/hydro.dart';
+import 'package:hydro/routes/root.dart';
+import 'package:hydro/plugins/plugin_manager.dart';
+import 'package:hydro/plugins/mysql_plugin.dart';
 
 void main(List<String> arguments) {
   startServer(ServerConfiguration());
@@ -19,19 +22,13 @@ class ServerConfiguration extends EntryPoint {
   List<Route> get routes => [Root()];
 
   @override
-  List<Middleware> get middlewares => [RejectionMiddleware(), AlwaysReject()];
+  List<Middleware> get middlewares => [DemoMiddleware()];
 }
 
-class RejectionMiddleware extends Middleware {
+class DemoMiddleware extends Middleware {
   @override
-  void handle(Request req) {
-    next();
-  }
-}
-
-class AlwaysReject extends Middleware {
-  @override
-  void handle(Request req) {
+  FutureOr<void> handle(Request request) {
+    //
     next();
   }
 }

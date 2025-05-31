@@ -1,9 +1,15 @@
 import 'dart:io';
-
-import 'package:hydro/bin/entry_point.dart';
-import 'package:hydro/bin/middleware.dart';
+import 'package:dotenv/dotenv.dart' as dotenv;
+import 'package:hydro/bin/globals.dart';
 import 'package:hydro/bin/request.dart';
 import 'package:hydro/bin/response.dart';
+import 'package:hydro/plugins/plugin_manager.dart';
+import 'package:hydro/plugins/plugin_registry.dart';
+
+import 'package:hydro/bin/dev/hot_reload_script.dart';
+import 'package:hydro/bin/entry_point.dart';
+import 'package:hydro/bin/middleware.dart';
+
 import 'package:hydro/bin/route.dart';
 
 startServer(EntryPoint entryPoint) {
@@ -11,7 +17,14 @@ startServer(EntryPoint entryPoint) {
 }
 
 class BootStrap {
-  BootStrap(EntryPoint entryPoint) {
+  final PluginManager _pluginManager = PluginManager();
+  final PluginRegistry _pluginRegistry;
+
+  BootStrap(EntryPoint entryPoint)
+    : _pluginRegistry = PluginRegistry(PluginManager()) {
+    env = dotenv.DotEnv()..load(['../.env']);
+
+    _registerDefaultPlugins();
     _serverStartup(
       entryPoint.configuration,
       entryPoint.routes,
@@ -20,12 +33,28 @@ class BootStrap {
     );
   }
 
+  void _registerDefaultPlugins() {
+    // Register MySQL plugin configuration
+    _pluginRegistry.registerPluginConfig('mysql', {
+      'host': env['MYSQL_HOST'] ?? 'localhost',
+      'port': int.tryParse(env['MYSQL_PORT'] ?? '3306'),
+      'database': env['MYSQL_DATABASE'] ?? 'hydro',
+      'username': env['MYSQL_USERNAME'] ?? 'root',
+      'password': env['MYSQL_PASSWORD'] ?? '',
+    });
+  }
+
   _serverStartup(
     Configuration config,
     List<Route> routes,
     List<Request> requestTypes,
     List<Middleware> middlewares,
   ) async {
+    // Load and initialize plugins
+    await _pluginRegistry.loadPlugins();
+    await _pluginManager.initializePlugins();
+    await _pluginManager.startPlugins();
+
     HttpServer httpServer = await HttpServer.bind(config.ip, config.port);
     print('Server started on http://${config.ip.address}:${config.port}');
 
@@ -35,23 +64,27 @@ class BootStrap {
           for (Request templateRequest in requestTypes) {
             if (req.method.toLowerCase() ==
                 templateRequest.method.toLowerCase()) {
-              Map<String, String>? parsedArguments = parseArguments(
+              Map<String, dynamic>? parsedArguments = parseArguments(
                 route.target,
                 req.uri.path,
               );
+
+              parsedArguments?.addAll({'query': req.uri.queryParameters});
 
               final Request request =
                   templateRequest
                     ..method = templateRequest.method
                     ..path = req.uri.path
+                    ..queryParameters = req.uri.queryParameters
                     ..arguments = parsedArguments ?? {};
+
+              // Run plugin beforeRequest hooks
+              await _pluginManager.beforeRequest(request);
 
               final middlewarePassed = await runMiddlewares(
                 middlewares,
                 request,
               );
-
-              print('Passed  ?? $middlewarePassed');
 
               if (!middlewarePassed) {
                 req.response.statusCode = HttpStatus.forbidden;
@@ -59,14 +92,21 @@ class BootStrap {
                 return;
               }
 
-              final response = route.onRoute(request);
-              print('Resolved  ?? $route');
+              final response = await route.onRoute(request);
 
               if (response != null) {
                 req.response.headers.set('Content-Type', response.type);
-                req.response.write(response.content);
-              }
 
+                String content = response.content;
+                if (response.isTemplate) {
+                  content = await response.render();
+                }
+
+                // Run plugin afterRequest hooks
+                await _pluginManager.afterRequest(request, response);
+
+                req.response.write(content);
+              }
               await req.response.close();
               return; // end after handling a match
             }
@@ -80,13 +120,28 @@ class BootStrap {
       await req.response.close();
     });
   }
+
+  Future<void> handleRequest(Request request, Response response) async {
+    try {
+      // Run before request hooks
+      await _pluginManager.beforeRequest(request);
+
+      // ... existing request handling code ...
+
+      // Run after request hooks
+      await _pluginManager.afterRequest(request, response);
+    } catch (e) {
+      // Handle errors through plugins
+      await _pluginManager.handleError(request, response, e);
+    }
+  }
 }
 
-Map<String, String>? parseArguments(String pattern, String path) {
+Map<String, dynamic>? parseArguments(String pattern, String path) {
   final patternSegments = pattern.split('/');
   final pathSegments = path.split('/');
 
-  Map<String, String> result = {};
+  Map<String, dynamic> result = {};
 
   int pIndex = 0;
   int aIndex = 0;

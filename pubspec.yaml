@@ -8,6 +8,11 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
+  async: ^2.13.0
+  dotenv: ^4.2.0
+  html: ^0.15.6
+  mustachex: ^1.0.0
+  mysql1: ^0.20.0
   # path: ^1.8.0
 
 dev_dependencies:

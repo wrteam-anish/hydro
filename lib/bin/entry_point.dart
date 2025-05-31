@@ -5,10 +5,12 @@ import 'package:hydro/bin/middleware.dart';
 import 'package:hydro/bin/request.dart';
 import 'package:hydro/bin/route.dart';
 
+bool isDevMode = true;
+
 abstract class EntryPoint {
   Configuration get configuration;
-  List<Route> routes = [Root()];
-  List<Request> requestTypes = [Post(), Get()];
+  List<Route> routes = [];
+  List<Request> requestTypes = [Post(), Get(), Put(), Patch(), Delete()];
   List<Middleware> middlewares = [];
 }
 
