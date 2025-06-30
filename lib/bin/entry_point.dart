@@ -8,6 +8,8 @@ import 'package:hydro/bin/route.dart';
 bool isDevMode = true;
 
 abstract class EntryPoint {
+  List<String> args;
+  EntryPoint(this.args);
   Configuration get configuration;
   List<Route> routes = [];
   List<Request> requestTypes = [Post(), Get(), Put(), Patch(), Delete()];

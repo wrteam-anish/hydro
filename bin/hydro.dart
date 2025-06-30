@@ -5,16 +5,15 @@ import 'package:hydro/bin/entry_point.dart';
 import 'package:hydro/bin/middleware.dart';
 import 'package:hydro/bin/request.dart';
 import 'package:hydro/bin/route.dart';
-import 'package:hydro/hydro.dart';
+import 'package:hydro/hydro_server.dart';
 import 'package:hydro/routes/root.dart';
-import 'package:hydro/plugins/plugin_manager.dart';
-import 'package:hydro/plugins/mysql_plugin.dart';
 
 void main(List<String> arguments) {
-  startServer(ServerConfiguration());
+  startServer(ServerConfiguration(arguments));
 }
 
 class ServerConfiguration extends EntryPoint {
+  ServerConfiguration(super.args);
   @override
   Configuration get configuration =>
       Configuration(ip: InternetAddress.loopbackIPv4, port: 4545);

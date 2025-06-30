@@ -1,12 +1,9 @@
 import 'dart:io';
 import 'package:dotenv/dotenv.dart' as dotenv;
 import 'package:hydro/bin/globals.dart';
+import 'package:hydro/bin/metadata/metadata_discovery.dart';
 import 'package:hydro/bin/request.dart';
-import 'package:hydro/bin/response.dart';
-import 'package:hydro/plugins/plugin_manager.dart';
-import 'package:hydro/plugins/plugin_registry.dart';
 
-import 'package:hydro/bin/dev/hot_reload_script.dart';
 import 'package:hydro/bin/entry_point.dart';
 import 'package:hydro/bin/middleware.dart';
 
@@ -17,14 +14,12 @@ startServer(EntryPoint entryPoint) {
 }
 
 class BootStrap {
-  final PluginManager _pluginManager = PluginManager();
-  final PluginRegistry _pluginRegistry;
+  BootStrap(EntryPoint entryPoint) {
+    env = dotenv.DotEnv()..load(['.env']);
+    args = entryPoint.args;
 
-  BootStrap(EntryPoint entryPoint)
-    : _pluginRegistry = PluginRegistry(PluginManager()) {
-    env = dotenv.DotEnv()..load(['../.env']);
+    MetadataDiscovery.discover();
 
-    _registerDefaultPlugins();
     _serverStartup(
       entryPoint.configuration,
       entryPoint.routes,
@@ -33,28 +28,12 @@ class BootStrap {
     );
   }
 
-  void _registerDefaultPlugins() {
-    // Register MySQL plugin configuration
-    _pluginRegistry.registerPluginConfig('mysql', {
-      'host': env['MYSQL_HOST'] ?? 'localhost',
-      'port': int.tryParse(env['MYSQL_PORT'] ?? '3306'),
-      'database': env['MYSQL_DATABASE'] ?? 'hydro',
-      'username': env['MYSQL_USERNAME'] ?? 'root',
-      'password': env['MYSQL_PASSWORD'] ?? '',
-    });
-  }
-
   _serverStartup(
     Configuration config,
     List<Route> routes,
     List<Request> requestTypes,
     List<Middleware> middlewares,
   ) async {
-    // Load and initialize plugins
-    await _pluginRegistry.loadPlugins();
-    await _pluginManager.initializePlugins();
-    await _pluginManager.startPlugins();
-
     HttpServer httpServer = await HttpServer.bind(config.ip, config.port);
     print('Server started on http://${config.ip.address}:${config.port}');
 
@@ -79,7 +58,6 @@ class BootStrap {
                     ..arguments = parsedArguments ?? {};
 
               // Run plugin beforeRequest hooks
-              await _pluginManager.beforeRequest(request);
 
               final middlewarePassed = await runMiddlewares(
                 middlewares,
@@ -103,7 +81,6 @@ class BootStrap {
                 }
 
                 // Run plugin afterRequest hooks
-                await _pluginManager.afterRequest(request, response);
 
                 req.response.write(content);
               }
@@ -119,21 +96,6 @@ class BootStrap {
       req.response.write("404 Not Found");
       await req.response.close();
     });
-  }
-
-  Future<void> handleRequest(Request request, Response response) async {
-    try {
-      // Run before request hooks
-      await _pluginManager.beforeRequest(request);
-
-      // ... existing request handling code ...
-
-      // Run after request hooks
-      await _pluginManager.afterRequest(request, response);
-    } catch (e) {
-      // Handle errors through plugins
-      await _pluginManager.handleError(request, response, e);
-    }
   }
 }
 
